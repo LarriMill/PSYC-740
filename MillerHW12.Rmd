@@ -1,0 +1,276 @@
+---
+title: "MillerHW12"
+author: "Larri Miller"
+date: "11/23/2021"
+output: html_document
+---
+
+I got tired of using .r files, so I'm using markdown instead to make this cleaner.
+
+Pulling in replication data:
+```{r}
+q1 <- read.delim("LariReplicationResQuestOneProcVar1.txt", sep=",")
+q2 <- read.delim("LariReplicationResQuestOneProcVar2.txt", sep=",")
+q3 <- read.delim("LariReplicationResQuestOneProcVar3.txt", sep=",")
+q4 <- read.delim("LariReplicationResQuestOneProcVar4.txt", sep=",")
+q5 <- read.delim("LariReplicationResQuestTwoProcVar1.txt", sep=",")
+q6 <- read.delim("LariReplicationResQuestTwoProcVar2.txt", sep=",")
+q7 <- read.delim("LariReplicationResQuestTwoProcVar3.txt", sep=",")
+q8 <- read.delim("LariReplicationResQuestTwoProcVar4.txt", sep=",")
+```
+
+t value code: 
+```{r}
+tval1=function(d1, mu=0.5){
+  as.numeric(t.test(d1,mu=0.5)$stat)
+}
+
+tval2=function(d1, d2){
+  as.numeric(t.test(d1, d2, paired=TRUE)$stat)
+}
+```
+
+Bayes Factor Code
+```{r}
+prior=function(es,mu=0,sigma=1) dnorm(es,mu,sigma)
+
+condPred=function(t,es,N){
+  df=N-1
+  ncp=es*sqrt(N)
+  cpred=suppressWarnings(dt(t,df,ncp))
+  return(cpred)
+}
+
+joint=function(t,es,N,mu=1,sigma=0) prior(es,mu,sigma)*condPred(t,es,N)
+  
+marPred=function(t,N,mu=0,sigma=1){
+  mpred=rep(NA,length(t))
+  for(i in 1:length(t)){
+    mpred[i]=integrate(joint,lower=-Inf,upper=Inf,
+                       t=t[i],N=N,mu=mu,sigma=sigma)$val
+  }
+  return(mpred)
+}
+
+
+nullPred=function(t,N) dt(t,N-1)
+```
+
+Function to calculate posterior probability of an effect
+```{r}
+postProb = function(bayesFactor){
+  bayesFactor/(bayesFactor+1)
+}
+```
+
+Approx post & see inference
+``` {r}
+approxPost=function(tObs,nObs,muPri=0,sigmaPri=1){
+  #par(mfcol=c(1,1),mar=c(4.5,4.5,1,1))
+  
+  normCons=marPred(tObs,nObs,muPri,sigmaPri)
+  
+  posterior=function(es) joint(tObs,es,nObs,muPri,sigmaPri)/
+    normCons
+  
+  esSeq=seq(-4,4,length.out=1000)
+  post=posterior(esSeq)
+  
+  mode=esSeq[post==max(post)][1]
+  
+  rats=post/max(post)
+  ratMiss=abs(rats-(dnorm(1)/dnorm(0)))
+  oneSdAbove=esSeq[esSeq>mode & 
+                     ratMiss==min(ratMiss[esSeq>mode])]
+  oneSdBelow=esSeq[esSeq<mode & 
+                     ratMiss==min(ratMiss[esSeq<mode])]
+  
+  devs=abs(c(oneSdAbove,oneSdBelow) - mode)
+  
+  muPost=mode
+  sigmaPost=mean(devs)
+  
+  # plot(esSeq,post,type='l')
+  # points(esSeq,dnorm(esSeq,muPost,sigmaPost),
+  #        type="l",col="blue",lty=2)
+  
+  output=c(muPost,sigmaPost)
+  return(output)
+}
+
+seeInference=function(tObs,nObs,muPri=0,sigmaPri=1){
+  par(mfcol=c(3,1),mar=c(2.5,4.5,1,4.5))
+  lineWid=1.5 #just sets line width for plots
+  
+  normCons=marPred(tObs,nObs,muPri,sigmaPri)
+  
+  posterior=function(es) joint(tObs,es,nObs,muPri,sigmaPri)/
+    normCons
+  
+  esSeq=seq(-4,4,length.out=100)
+  
+  #plot prior
+  dens=prior(esSeq,muPri,sigmaPri)
+  yMax=max(dens)*1.2
+  plot(esSeq,dens,type='l',
+       bty='n',ylab="Prior",
+       ylim=c(0,yMax),las=1,
+       xlab="",lwd=lineWid)
+  abline(h=0)
+  
+  #plot likelihood
+  lik=condPred(tObs,esSeq,nObs)
+  yMax=max(lik)*1.2
+  plot(esSeq,lik,type='l',
+       bty='n',ylab="Likelihood",
+       ylim=c(0,yMax),las=1,
+       xlab="",lwd=lineWid)
+  abline(h=0)
+  
+  #get a Gaussian that approximates
+  #  the posterior distribution
+  distPost=approxPost(tObs,nObs,muPri,sigmaPri)
+  muPost=distPost[1]
+  sigmaPost=distPost[2]
+  
+  #plot posterior  
+  post=posterior(esSeq)
+  yMax=max(post)*1.2
+  plot(esSeq,post,type='l',
+       bty='n',ylab="Posterior",
+       ylim=c(0,yMax),las=1,
+       xlab="",lwd=lineWid)
+  abline(h=0)
+  
+  points(esSeq,dnorm(esSeq,muPost,sigmaPost),
+         type='l',col='orange',lty=3,lwd=lineWid)
+  
+  return(normCons)
+}
+```
+
+
+Q1
+Bayes Factor: 1.809163
+Post Prob: 0.6440221
+Mu: 0.7007007 Sigma: 0.1601602
+```{r}
+# Bayes Factor
+tval1(q1$PropCor)
+marPred(2.037173, 20, 0.925, 0.228)/nullPred(2.037173, 20)
+
+# Post Prob
+postProb(1.809163)
+
+# distribution
+seeInference(2.037173, 20, 0.925, 0.228)
+approxPost(2.037173, 20, 0.925, 0.228)
+```
+
+Q2
+Bayes Factor: 29271.95
+Post Prob: 0.9999658
+Mu: 1.2692693 Sigma: 0.1961962
+```{r}
+# Bayes Factor
+tval1(q2$PropCor)
+marPred(6.167072, 20, 1.197, 0.252)/nullPred(6.167072, 20)
+
+# Post Prob
+postProb(29271.95)
+
+# distribution
+seeInference(6.167072, 20, 1.197, 0.252)
+approxPost(6.167072, 20, 1.197, 0.252)
+```
+
+Q3
+Bayes Factor: 0.3493036
+Post Prob: 0.2588769
+Mu: 0.4684685 Sigma: 0.1121121
+```{r}
+# Bayes Factor
+tval1(q3$PropCor)
+marPred(0.734171, 20, 0.565, 0.128)/nullPred(0.734171, 20)
+
+# Post Prob
+postProb(0.3493036)
+
+# distribution
+seeInference(0.734171, 20, 0.565, 0.128)
+approxPost(0.734171, 20, 0.565, 0.128)
+```
+
+Q4
+Bayes Factor: 0.03165432
+Post Prob: 0.03068307
+Mu: 0.3323323 Sigma: 0.1081081
+```{r}
+# Bayes Factor
+tval1(q4$PropCor)
+marPred(-0.9266915, 20, 0.501, 0.128)/nullPred(-0.9266915, 20)
+
+# Post prob
+postProb(0.03165432)
+
+# disitrbution
+seeInference(-0.9266915, 20, 0.501, 0.128)
+approxPost(-0.9266915, 20, 0.501, 0.128)
+```
+
+Q5
+Bayes Factor: 27.3076
+Post Prob: 0.9647
+Mu: 0.5325 Sigma: 0.1401
+```{r}
+tval2(q5$PropCorOo3, q5$PropCorOc3)
+marPred(2.882307, 25, 0.501, 0.192)/nullPred(2.882307, 25)
+
+postProb(27.3076)
+
+seeInference(2.882307, 25, 0.501, 0.192)
+approxPost(2.882307, 25, 0.501, 0.192)
+```
+
+Q6
+Bayes Factor:4663.3505
+Post Prob: 0.9998
+Mu: 0.8128 Sigma: 0.15615616
+```{r}
+tval2(q6$PropCorOo3, q6$PropCorOc3)
+marPred(5.3797, 25, 0.637, 0.204)/nullPred(5.3797, 25)
+
+postProb(4663.3505)
+
+seeInference(5.3797, 25, 0.637, 0.204)
+approxPost(5.3797, 25, 0.637, 0.204)
+```
+
+Q7
+Bayes Factor: 164.425
+Post Prob: 0.9940
+Mu: 0.4845  Sigma: 0.1041
+```{r}
+tval2(q7$PropCorOo3, q7$PropCorOc3)
+marPred(4.190279, 25, 0.396, 0.116)/nullPred(4.190279, 25)
+
+postProb(164.425)
+
+seeInference(4.190279, 25, 0.396, 0.116)
+approxPost(4.190279, 25, 0.396, 0.116)
+```
+
+Q8
+Bayes Factor: 0.7779
+Post Prob: 0.4375
+Mu: 0.1882 Sigma: 0.1001001
+```{r}
+tval2(q8$PropCorOo3, q8$PropCorOc3)
+marPred(0.414595, 25, 0.228, 0.116)/nullPred(0.414595, 25)
+
+postProb(0.7779)
+
+seeInference(0.414595, 25, 0.228, 0.116)
+approxPost(0.414595, 25, 0.228, 0.116)
+```
+
