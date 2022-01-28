@@ -1,0 +1,150 @@
+---
+title: "HW13Miller"
+author: "Larri Miller"
+date: "12/8/2021"
+output: html_document
+---
+
+Kuan-Jung data hierarchical model code
+```{r}
+source("DBDA2Eprograms/DBDA2E-utilities.R")
+
+dat=read.csv("KuanJungDataOCvsOO.txt")
+
+
+dataList = list(    # Put the information into a list.
+  part = dat[,'partNum'] ,
+  nPart = max(dat[,'partNum']) ,
+  yOC = dat[,'nSuccOC'] ,
+  yOO = dat[,'nSuccOO'] ,
+  nOC = dat[,'nAttOC'] ,
+  nOO = dat[,'nAttOO'] 
+)
+
+
+# Define the model:
+modelString = "
+model {
+  for ( i in 1:nPart ) {
+    yOC[i] ~ dbinom( thetaOC[i], nOC[i] )
+    yOO[i] ~ dbinom( thetaOO[i], nOO[i] )
+    beta0[i] ~ dnorm(Mbeta0, 1/ Sbeta0  ^2)
+    effect[i] ~ dnorm(Meffect, 1/ Seffect  ^2)
+    logitOC[i] = beta0[i] - .5*effect[i]
+    logitOO[i] = beta0[i] + .5*effect[i]
+    thetaOC[i] =1/(1+exp(-logitOC[i]))
+    thetaOO[i] =1/(1+exp(-logitOO[i]))
+  }
+  Mbeta0 ~ dnorm( 0 , 1/ 1 ^2)
+  Sbeta0 ~ dnorm( .75 , 1/ .5 ^2)T(0.4,1.5)
+  Meffect ~ dnorm( 0 , 1/ 1 ^2)
+  Seffect ~ dnorm( .5 , 1/ .5 ^2)T(0.3,1)
+}
+" # close quote for modelString
+writeLines(modelString, con="TEMPmodel.txt")
+
+
+# Run the chains:
+runJagsOut = run.jags(
+  method=runjagsMethodDefault, #"parallel" or "rjags" 
+  model="TEMPmodel.txt",
+  monitor=c("Mbeta0","Sbeta0","Meffect","Seffect",
+            "beta0","effect","thetaOC","thetaOO"),
+  data=dataList,
+#  inits=initsList,
+  n.chains=nChainsDefault,
+  adapt=1000,
+  burnin=1500,
+  sample=4000,
+  thin=10,
+  summarise=FALSE, #Diagnostics for everything? British spelling!
+  plots=FALSE
+)
+
+#create list of samples from
+#  all the separate chains
+codaSamples = as.mcmc.list(runJagsOut)
+
+#Combine chains into one big matrix 
+allSamples=do.call(rbind,codaSamples)
+
+chainStats=summary(runJagsOut)
+
+# Examine the chains:
+# Convergence diagnostics:
+diagMCMC( codaObject=codaSamples , parName="Meffect" )
+
+# Posterior descriptives:
+dev.new(height=5,width=5,
+        units="in",noRStudioGD = T) #create new plpot window
+plotPost( codaSamples[,"Meffect"] , 
+          main="Meffect" , 
+          xlab=bquote(mu[effect]) , 
+          cenTend="median" , 
+          #compVal=0.5 , 
+          #ROPE=c(0.45,0.55) , 
+          credMass=0.90 
+          )
+
+ovPc=(dat[,2]+dat[,3])/(dat[,4]+dat[,5])
+#observed percent correct overall
+#  (across both conditions)
+
+ovCorLo=log(ovPc/(1-ovPc))
+#same converted to log odds (logit)
+
+ocPc=dat[,2]/dat[,4]
+ooPc=dat[,3]/dat[,5]
+#observed percent correct in each
+#  condition
+
+ocCorLo=log(ocPc/(1-ocPc))
+ooCorLo=log(ooPc/(1-ooPc))
+#same converted to log odds
+
+diffCorLo=ooCorLo-ocCorLo
+#effect (difference between conditions)
+#  on a log odds scale
+
+parLabs=colnames(allSamples)
+#parameter labels
+
+lev=grep('beta0\\[',parLabs)
+#pick out columns with individual
+#  participant intercept samples
+
+medBeta0=apply(allSamples[,lev],2,median)
+#get a point estimate (median of posterior)
+#  for each participant's intercept
+
+lev=grep('effect\\[',parLabs)
+medEffect=apply(allSamples[,lev],2,median)
+
+plotInt=function(){
+  plot(ovCorLo,medBeta0)
+  abline(0,1)
+}
+#scatterplot of observed versus
+#  estimated intercept across
+#  participants
+
+plotEffect=function(){
+  plot(diffCorLo,medEffect)
+  abline(0,1)
+}
+#scatterplot of observed versus
+#  estimated effect across
+#  participants
+
+
+#These plots display "shrinkage": extreme
+#  data points do not get equally extreme
+#  parameter estimates, as they would in
+#  maximum likelihood estimation.
+#Don't confuse this with "shrink factor",
+#  the Gelman-Rubin statistic used for
+#  diagnostics
+
+
+```
+
