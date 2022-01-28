@@ -1,0 +1,203 @@
+---
+title: "HW3Miller"
+author: "Larri Miller"
+date: "Due 9/15/2021"
+output: html_document
+---
+
+1. In 2018, a certain Ph.D. program accepted 12% (.12) of the students who applied. Of the students who were accepted, 94% (.94) of them had been interviewed. Of the students who were not accepted, 15% (.15) of them had been interviewed.
+
+Variables that I will need:
+```{r}
+accept <- 0.12
+deny <- 1-accept
+interviewAccept <- 0.94
+interviewDeny <- 0.15
+```
+
+A) Out of all students who applied, what is the joint probability that a student was both interviewed and accepted?
+
+P(interviewed & accepted) = P(accepted) * P(interviewed | accepted)
+```{r}
+oneA <- accept * interviewAccept
+oneA
+```
+
+Probability: 0.1128
+
+B) Out of all the students who applied, what is the joint probability that a student was interviewed and then NOT accepted?
+
+P(interviewed & not accepted) = P(not accepted) * P(interviewed | not accepted)
+```{r}
+oneB <- deny * interviewDeny
+oneB
+```
+
+Probability: 0.132
+
+C) If you know that a certain student was interviewed, what is the probability that this student was accepted?
+
+P(accepted | interviewed) = P(interviewed | accepted) * P(accept) / 
+(P(interviewed | accepted)* P(accept)) + (P(interviewed | deny)*P(deny))
+```{r}
+num <- interviewAccept*accept
+denom <- num + (interviewDeny*deny)
+oneC <- num/denom
+oneC
+```
+
+Probability: 0.461
+
+D) If you did NOT know whether or not a certain student was interviewed, what are the *odds* that this student was accepted?
+
+I'm going to run the overall acceptance rate through my handy dandy prob to odds function from last HW. I've found that the MASS package will give me a fraction output.
+```{r}
+ProbToOdds = function(x){ 
+  y = x / (1 - x)
+  return(y)
+}
+
+library(MASS)
+oneD <- fractions(ProbToOdds(accept))
+oneD
+```
+Odds:  3 / 22.
+
+E) If you know that a certain student was interviewed, what are the *odds* that this student was accepted?
+
+Putting answer from 1C into the prob to odd function
+```{r}
+oneE <- fractions(ProbToOdds(oneC))
+oneE
+```
+Odds: 47/55.
+
+F) In contrasting the hypothesis that a student was accepted and the hypothesis that a student was not accepted, what is the likelihood ratio associated with learning that the student was interviewed?
+
+The likelihood ratio is equivalent to the conditional probability P(accepted | interviewed), previously determined to be 0.461.
+
+2) Previous data indicate that a certain theoretical claim is 3 times more likely to be true than false. In a new experiment, the observed data were 10 times more likely under the assumption that the claim is true than under the assumption that the claim is false.
+
+Variables
+```{r}
+Hypothesis <- 3
+Observed <- 10
+```
+
+
+A) After the new experiment, what are the odds that the theoretical claim is true?
+
+Posterior odds = Prior odds*Likelihood ratio
+
+Likelihood ratio = P(Observed / Hypothesis) / P(Observed / Not Hypothesis)
+
+Using my handy dandy(tm) odds to prob function as well as the prob to odds function here:
+```{r}
+OddsToProb = function(x){
+  y = x / (x + 1)
+  return(y)
+}
+
+num2 <- OddsToProb(3)
+den2 <- OddsToProb(10)
+
+likelihood <- num2/den2
+
+posterior <- num2*likelihood
+
+twoA <- fractions(ProbToOdds(posterior))
+twoA
+```
+The odds are 99/61.
+
+B) What is the corresponding probability that the claim is true?
+
+Found in the previous problem:
+```{r}
+posterior
+```
+The probability is 0.619.
+
+3) In a parallel universe, .16 of restaurants in the Pioneer valley sell cheese fries. The joint probability that a restaurant sells cheese fries and is located in Amherst is .02. If a certain restaurant in the parallel-universe Pioneer Valley sells cheese fries, what is the probability that it is located in Amherst?
+
+Variables
+```{r}
+fries <- 0.16
+friesAmherst <- 0.02
+```
+
+P(amherst | fries) = P( fries | amherst) / P(fries)
+```{r}
+three <- friesAmherst/fries
+three
+```
+Probability: 0.125
+
+4) A board game has 100 "lose a turn" cards and 100 "free play" cards shuffled together into one big deck. There are no other cards in the deck. For the "lose a turn" cards, 15 are red and 85 are blue. For the "free play" cards, 75 are red and 25 are blue.
+
+Variables
+```{r}
+redLose <- 15
+blueLose <- 85
+redFree <- 75
+blueFree <- 25
+total <- 200
+```
+
+
+A) How many cards in the deck are both "lose a turn" cards and colored red?
+15
+
+B) How many total cards in the deck are colored red?
+```{r}
+red <- redLose + redFree
+red
+```
+90 red cards
+
+C) Using your numbers from A and B, calculate the probability that a red card is a "lose a turn" card (show work)
+
+P(red | lose) = P(red) * P (lose | red)
+```{r}
+fourC <- 15/red
+fourC
+```
+Probability: 0.167
+
+D) What is the probability of drawing a "lose a turn" card overall?
+```{r}
+lose <- (redLose + blueLose)/total
+lose
+```
+Probability: 0.5
+
+E) For a "lose a turn" card, what is the probability that it is red?
+P(red | lose) = P (redLose) / P(lose)
+```{r}
+fourE <- (redLose/total) / lose
+fourE
+```
+Probability: 0.15
+
+F) For a "free play" card, what is the probability that it is red?
+P(red | free) = P(redFree) / P(free)
+```{r}
+fourF <- (redFree/total) / (1 - lose)
+fourF
+```
+Probability: 0.75
+
+G) Using your numbers from D,E,and F, calculate the probability that a red card is a "lose a turn" card by applying Bayes Theorem (show work)
+
+P (lose | red) = P (red | lose)* P(lose) \ ((P(red | lose)* P(lose))) + (P(red | win)*P(win))
+
+```{r}
+num4 <- fourE*0.5
+den4 <- (fourE*0.5) + (fourF * (1-lose))
+fourG <- num4/den4
+fourG
+```
+Probability: 0.167
+
+5. A) 72 ¯\_(ツ)_/¯
+   B) Almost all people are at a height of between 65-75. It's so much more likely to have someone within that range-- and looking at the stride distribution, there's still people that have a stride falling within 70+. That narrows our choice down to 70, 72, or 75. 70 and 75 are both close to cut-off points-- 75 on the top graph, and 70 on the bottom. Thinking about all of that... I'm going with 72. It's right near the middle of the height distribution  and within the possible range of the bottom distribution. 
